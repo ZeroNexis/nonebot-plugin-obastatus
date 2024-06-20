@@ -29,12 +29,12 @@ _✨ 获取 OpenBMCLAPI 相关数据 ✨_
 
 - 使用 nb-cli 安装
 ```shell
-nb plugin install nonebot_plugin_obastatus
+nb plugin install nonebot-plugin-obastatus
 ```
 
 - 使用包管理器安装
 ```shell
-pip install nonebot_plugin_obastatus
+pip install nonebot-plugin-obastatus
 ```
 
 ## ⚙️ 配置
