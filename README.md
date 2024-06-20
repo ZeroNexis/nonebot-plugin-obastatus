@@ -25,17 +25,17 @@ _✨ 获取 OpenBMCLAPI 相关数据 ✨_
 
 基于 [nonebot2](https://github.com/nonebot/nonebot2) 和 [go-cqhttp](https://github.com/Mrs4s/go-cqhttp) 的 OpenBMCLAPI 相关数据查询插件
 
-<!-- ## 💿 安装
+## 💿 安装
 
 - 使用 nb-cli 安装
 ```shell
-nb plugin install nonebot-plugin-obastatus
+nb plugin install nonebot_plugin_obastatus
 ```
 
 - 使用包管理器安装
 ```shell
-pip install nonebot-plugin-obastatus
-``` -->
+pip install nonebot_plugin_obastatus
+```
 
 ## ⚙️ 配置
 
