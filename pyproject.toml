@@ -1,9 +1,15 @@
 [project]
 name = "nonebot_plugin_obastatus"
 version = "1.0.0"
-description = "nonebot_plugin_obastatus"
+description = "获取 OpenBMCLAPI 相关数据"
 readme = "README.md"
 requires-python = ">=3.8, <4.0"
+dependencies = [
+    "nonebot2<3.0.0,>=2.0.0",
+    "nonebot-adapter-onebot<3.0.0,>=2.2.2",
+    "nonebot-plugin-apscheduler<1.0.0,>=0.3.0",
+    "nonebot-plugin-localstore<1.0.0,>=0.6.0",
+]
 
 [tool.nonebot]
 adapters = [
