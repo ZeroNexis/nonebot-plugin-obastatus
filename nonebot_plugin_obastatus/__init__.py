@@ -2,16 +2,18 @@
 import nonebot
 from .config import Config, plugin_name, plugin_version, plugin_config
 from nonebot import get_plugin_config
-from nonebot.plugin import PluginMetadata
+from nonebot.plugin import PluginMetadata, inherit_supported_adapters
 
 ## 机器人 部分
 import json
 import httpx
 import locale
+import asyncio
 import datetime
 from loguru import logger
+from random import choice
 from nonebot.params import CommandArg
-from nonebot import require, on_command
+from nonebot import require, on_command, get_driver
 from nonebot.adapters import Bot, Event, MessageSegment, Message
 
 ## 回复 & 发图 部分
@@ -28,6 +30,8 @@ require("nonebot_plugin_localstore")
 import nonebot_plugin_localstore as store
 
 # 插件初始化
+driver = get_driver()
+
 __plugin_meta__ = PluginMetadata(
     name="nonebot_plugin_obastatus",
     description="获取 OpenBMCLAPI 相关数据",
@@ -46,7 +50,7 @@ __plugin_meta__ = PluginMetadata(
     config=Config,
     # 插件配置项类，如无需配置可不填写。
 
-    supported_adapters={"~onebot.v11"},
+    supported_adapters=inherit_supported_adapters("nonebot_plugin_alconna")
     # 支持的适配器集合，其中 `~` 在此处代表前缀 `nonebot.adapters.`，其余适配器亦按此格式填写。
     # 若插件可以保证兼容所有适配器（即仅使用基本适配器功能）可不填写，否则应该列出插件支持的适配器。
 )
@@ -54,6 +58,11 @@ __plugin_meta__ = PluginMetadata(
 headers = {
     'Cookie': plugin_config.oba_cookie,
 }
+
+## 开机后先运行一遍重载缓存
+@driver.on_startup
+async def do_something():
+    await reload_cache()
 
 # 存储单位格式化
 def hum_convert(value):
@@ -96,7 +105,7 @@ def get_record_by_index(records, index):
         return None
 
 # 读缓存
-def read_file_from_cache(filename: str):
+async def read_file_from_cache(filename: str):
     cache_file = store.get_cache_file(plugin_name, filename)
     with open(cache_file, "r") as f:
         filelist_content = f.read()
@@ -104,20 +113,20 @@ def read_file_from_cache(filename: str):
     return filelist
 
 # 写缓存
-def write_file_to_cache(filename, filelist):
+async def write_file_to_cache(filename, filelist):
     cache_file = store.get_cache_file(plugin_name, filename)
     with open(cache_file, "w") as f:
         json.dump(filelist, f)
     logger.info(f"{filename} 的缓存保存成功")
 
 # 刷新缓存
-def reload_cache():
+async def reload_cache():
     version = httpx.get('https://bd.bangbang93.com/openbmclapi/metric/version', headers=headers).json()
     dashboard = httpx.get('https://bd.bangbang93.com/openbmclapi/metric/dashboard', headers=headers).json()
     rank = httpx.get('https://bd.bangbang93.com/openbmclapi/metric/rank', headers=headers).json()
-    write_file_to_cache('version.json', version)
-    write_file_to_cache('dashboard.json', dashboard)
-    write_file_to_cache('rank.json', rank)
+    await write_file_to_cache('version.json', version)
+    await write_file_to_cache('dashboard.json', dashboard)
+    await write_file_to_cache('rank.json', rank)
 
 scheduler.add_job(
     reload_cache, "interval", minutes=1, id="timed_cache_refresh"
@@ -141,8 +150,8 @@ Tips: 结果 >3 条显示部分信息，结果 > 10条不显示任何信息（�
 status = on_alconna("总览")
 @status.handle()
 async def handle_function(bot: Bot, event: Event):
-    version = read_file_from_cache('version.json')
-    dashboard = read_file_from_cache('dashboard.json')
+    version = await read_file_from_cache('version.json')
+    dashboard = await read_file_from_cache('dashboard.json')
     await status.finish(f'''OpenBMCLAPI 面板数据 {plugin_version}
 官方版本: {version.get('version')} | 提交ID: {version.get('_resolved').split('#')[1][:7]}
 在线节点数: {dashboard.get('currentNodes')} 个 | 负载: {round(dashboard.get('load')*100, 2)}%
@@ -173,8 +182,8 @@ async def got_name(name: str):
 搜索条件不符合要求，请调整参数后重新尝试'''
     else:
         send_text = f'OpenBMCLAPI 面板数据 {plugin_version}'
-        rank = read_file_from_cache('rank.json')
-        version = read_file_from_cache('version.json')
+        rank = await read_file_from_cache('rank.json')
+        version = await read_file_from_cache('version.json')
         matches_with_index = search_by_name(rank, str(args), 'name')
         if len(matches_with_index) > 0 and len(matches_with_index) <= 3:
             for index, match in matches_with_index:
@@ -241,8 +250,8 @@ async def got_id(id: str):
 要求: 节点ID 最多 24 个字符
 搜索条件不符合要求，请调整参数后重新尝试'''
     else:
-        rank = read_file_from_cache('rank.json')
-        version = read_file_from_cache('dashboard.json')
+        rank = await read_file_from_cache('rank.json')
+        version = await read_file_from_cache('dashboard.json')
         matches_with_index = search_by_name(rank, id, '_id')
         if len(matches_with_index) > 0 and len(matches_with_index) <= 3:
             for index, match in matches_with_index:
@@ -320,8 +329,8 @@ async def handle_function(position: Match[str]):
 @node_rank.got_path("position", prompt="缺参数啦！记得补上喵喵～")
 async def got_position(position: int):
     send_text = f'OpenBMCLAPI 面板数据 {plugin_version}'
-    rank = read_file_from_cache('rank.json')
-    version = read_file_from_cache('version.json')
+    rank = await read_file_from_cache('rank.json')
+    version = await read_file_from_cache('version.json')
     try:
         index = position-1
         match = get_record_by_index(rank, index)
@@ -373,25 +382,25 @@ async def handle_function(name: Match[str]):
     if name.available:
         bangbang93HUB.set_path_arg("name", name.result)
 
-@bangbang93HUB.got_path("name", prompt=UniMessage.image('https://apis.bmclapi.online/api/93/random').send(reply_to=True))
+@bangbang93HUB.got_path("name", prompt=UniMessage.image(url='https://apis.bmclapi.online/api/93/random'))
 async def handle_function(name: str):
     send_text = ''
-    name = name.replace('\n', '')
-    matchList = []
-    imageList = httpx.get('https://ttb-network.top:8800/mirrors/bangbang93hub/filelist', headers=headers).json()
-
-    for i in imageList:
-        if name.lower() in i:
-            matchList.append(i)
-
-    if len(matchList) < 1:
-        send_text = UniMessage.text('找不到哦，请重新尝试~')
-    elif len(matchList) == 1:
-        send_text =  UniMessage.image(f"https://apis.bmclapi.online/api/93/file?name={matchList[0]}")
+    if name == '':
+        send_text = UniMessage.image(url='https://apis.bmclapi.online/api/93/random')
     else:
-        send_text = UniMessage.text(f'搜索结果包含 {len(matchList)} 条，请改用更加精确的参数搜索')
+        name = name.replace('\n', '')
+        matchList = []
+        imageList = httpx.get('https://ttb-network.top:8800/mirrors/bangbang93hub/filelist', headers=headers).json()
+
+        for i in imageList:
+            if name.lower() in i:
+                matchList.append(i)
+
+        if len(matchList) < 1:
+            send_text = UniMessage.text('找不到哦，请重新尝试~')
+        elif len(matchList) == 1:
+            send_text =  UniMessage.image(url=f"https://apis.bmclapi.online/api/93/file?name={matchList[0]}")
+        else:
+            send_text = UniMessage.text(f'搜索结果包含 {len(matchList)} 条，请改用更加精确的参数搜索')
     r = await send_text.send(reply_to=True)
     await r.recall(delay=60, index=0)
-
-# 开机后先运行一遍重载缓存
-reload_cache()
