@@ -3,9 +3,10 @@ from pydantic import BaseModel
 
 
 class Config(BaseModel):
-    chatrecorder_record_send_msg: bool = True
+    obastatus_command_start: str = '#'
+    oba_cookie: str = ''
 
 
 plugin_name = 'nonebot_plugin_obastatus'
-plugin_version = 'v1.0.2'
+plugin_version = 'v1.0.3'
 plugin_config = get_plugin_config(Config)
