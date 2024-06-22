@@ -17,9 +17,8 @@ from nonebot import require, on_command, get_driver
 from nonebot.adapters import Bot, Event, MessageSegment, Message
 
 ## 回复 & 发图 部分
-require("nonebot_plugin_alconna")
-from arclet.alconna import Alconna, Args
-from nonebot_plugin_alconna import Target, UniMessage, SupportScope, on_alconna, Match
+require("nonebot_plugin_saa")
+from nonebot_plugin_saa import Text, Image, MessageFactory
 
 ## 定时任务 部分
 require("nonebot_plugin_apscheduler")
@@ -50,7 +49,7 @@ __plugin_meta__ = PluginMetadata(
     config=Config,
     # 插件配置项类，如无需配置可不填写。
 
-    supported_adapters=inherit_supported_adapters("nonebot_plugin_alconna")
+    supported_adapters=inherit_supported_adapters("nonebot_plugin_saa")
     # 支持的适配器集合，其中 `~` 在此处代表前缀 `nonebot.adapters.`，其余适配器亦按此格式填写。
     # 若插件可以保证兼容所有适配器（即仅使用基本适配器功能）可不填写，否则应该列出插件支持的适配器。
 )
@@ -121,9 +120,9 @@ async def write_file_to_cache(filename, filelist):
 
 # 刷新缓存
 async def reload_cache():
-    version = httpx.get('https://bd.bangbang93.com/openbmclapi/metric/version', headers=headers).json()
-    dashboard = httpx.get('https://bd.bangbang93.com/openbmclapi/metric/dashboard', headers=headers).json()
-    rank = httpx.get('https://bd.bangbang93.com/openbmclapi/metric/rank', headers=headers).json()
+    version = await httpx.get('https://bd.bangbang93.com/openbmclapi/metric/version', headers=headers).json()
+    dashboard = await httpx.get('https://bd.bangbang93.com/openbmclapi/metric/dashboard', headers=headers).json()
+    rank = await httpx.get('https://bd.bangbang93.com/openbmclapi/metric/rank', headers=headers).json()
     await write_file_to_cache('version.json', version)
     await write_file_to_cache('dashboard.json', dashboard)
     await write_file_to_cache('rank.json', rank)
@@ -133,10 +132,10 @@ scheduler.add_job(
 )
 
 # 插件的帮助面板
-help = on_alconna("帮助")
+help = on_command("帮助")
 @help.handle()
 async def handle_function(bot: Bot):
-    await help.finish(f'''OpenBMCLAPI 面板数据 {plugin_version}
+    help_msg = f'''OpenBMCLAPI 面板数据 {plugin_version}
 帮助: 返回此信息
 总览: 返回 OpenBMCLAPI 当前状态
 节点 <搜索条件>: 返回搜索到的节点信息
@@ -144,44 +143,36 @@ async def handle_function(bot: Bot):
 93HUB <(可选)图片搜索条件>: 相信你一定知道
 Tips: 结果 >3 条显示部分信息，结果 > 10条不显示任何信息（搜索可爱除外）
 特别鸣谢: 盐木、甜木、米露、听风、天秀 和 bangbang93 的不杀之恩
-''')
+'''
+    await MessageFactory(help_msg).finish(reply=True)
     
 # OpenBMCLAPI 总览
-status = on_alconna("总览")
+status = on_command("总览")
 @status.handle()
 async def handle_function(bot: Bot, event: Event):
     version = await read_file_from_cache('version.json')
     dashboard = await read_file_from_cache('dashboard.json')
-    await status.finish(f'''OpenBMCLAPI 面板数据 {plugin_version}
+    status_msg = f'''OpenBMCLAPI 面板数据 {plugin_version}
 官方版本: {version.get('version')} | 提交ID: {version.get('_resolved').split('#')[1][:7]}
 在线节点数: {dashboard.get('currentNodes')} 个 | 负载: {round(dashboard.get('load')*100, 2)}%
 总带宽: {dashboard.get('bandwidth')} Mbps | 出网带宽: {round(dashboard.get('currentBandwidth'), 2)} Mbps
 当日请求: {format_number(dashboard.get('hits'))} 次 | 数据量: {hum_convert(dashboard.get('bytes'))}
 请求时间: {datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
-数据源: https://bd.bangbang93.com/pages/dashboard''')
+数据源: https://bd.bangbang93.com/pages/dashboard'''
+    await MessageFactory(status_msg).finish(reply=True)
 
 # 根据 节点名称 搜索节点详细信息   
-node = on_alconna(
-    Alconna(
-        "节点",
-        Args["name?", str]
-    ),
-)
-
+node = on_command("节点")
 @node.handle()
-async def handle_function(name: Match[str]):
-    if name.available:
-        node.set_path_arg("name", name.result)
-
-@node.got_path("name", prompt="缺参数啦！记得补上喵喵～")
-async def got_name(name: str):
-    args = str(name).replace('\n', '')
+async def handle_function(bot: Bot, event: Event, args: Message = CommandArg()):
+    args = str(args).replace('\n', '')
     send_text = f'OpenBMCLAPI 面板数据 {plugin_version}'
-    if len(str(args)) > 16:
-        send_text += f'''\n要求: 节点名称 最多 16 个字符
+    if str(args) == '' or str(args).isspace():
+        send_text += '\n缺参数啦！记得补上喵喵～'
+    elif len(str(args)) > 16:
+        send_text += '''\n要求: 节点名称 最多 16 个字符
 搜索条件不符合要求，请调整参数后重新尝试'''
     else:
-        send_text = f'OpenBMCLAPI 面板数据 {plugin_version}'
         rank = await read_file_from_cache('rank.json')
         version = await read_file_from_cache('version.json')
         matches_with_index = search_by_name(rank, str(args), 'name')
@@ -191,17 +182,17 @@ async def got_name(name: str):
                 fullSize_status = '❔'
                 version_status = '❔'
                 # 节点状态检测
-                if match.get('isEnabled') == True:
+                if match.get('isEnabled'):
                     enabled_status = '✅'
                 else:
                     enabled_status = '❌'
                 # 节点类型检测
-                if match.get('fullSize') == True:
+                if match.get('fullSize'):
                     fullSize_status = '🌕'
                 else:
                     fullSize_status = '🌗'
                 # 节点版本检测
-                if match.get('version') != None:
+                if match.get('version') is not None:
                     if match.get('version') == version.get('version'):
                         version_status = '🟢'
                     else:
@@ -210,7 +201,6 @@ async def got_name(name: str):
                 send_text += f'''\n{enabled_status}{fullSize_status} | {index} | {match.get('name')} | {match.get('version', '未知')}{version_status}
 所有者: {match.get('user', {}).get('name', '未知')} | 赞助商: {match.get('sponsor', {}).get('name', '未知')}
 当日流量: {hum_convert(match.get('metric', {}).get('bytes', 0))} | 当日请求数: {format_number(match.get('metric', {}).get('hits', 0))} 次'''
-                send_text += f'\n请求时间: {datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}'
         elif (len(matches_with_index) > 3 and len(matches_with_index) <= 10) or str(args) == '可爱':
             for index, match in matches_with_index:
                 # 节点状态检测
@@ -219,68 +209,54 @@ async def got_name(name: str):
                 else:
                     enabled_status = '❌'
                 send_text += f'''\n{enabled_status} | {index} | {match.get('name')} | {hum_convert(match.get('metric', {}).get('bytes', 0))} | {format_number(match.get('metric', {}).get('hits', 0))}'''
-            send_text += f'\n请求时间: {datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}'
         elif len(matches_with_index) > 10 and str(args) != '可爱':
-            send_text += f'''\n搜索到{len(matches_with_index)}个节点，请改用更精确的名字
-请求时间: {datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}'''
+            send_text += f'\n搜索到{len(matches_with_index)}个节点，请改用更精确的名字'
         else:
-            send_text += f'''未找到有关 {args} 的相关节点信息，请调整参数后重新尝试
-请求时间: {datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}'''
-        r = await UniMessage.text(send_text).send(reply_to=True)
-        await r.recall(delay=60, index=0)
+            send_text += f'\n未找到有关 {args} 的相关节点信息，请调整参数后重新尝试'
+    send_text += f'\n请求时间: {datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}'
+    await MessageFactory(send_text).finish(reply=True)
 
 # 根据 节点ID 搜索拥有者
-node_id = on_alconna(
-    Alconna(
-        "ID",
-        Args["id?", str]
-    ),
-)
-
+node_id= on_command("ID")
 @node_id.handle()
-async def handle_function(id: Match[str]):
-    if id.available:
-        node_id.set_path_arg("id", id.result)
-
-@node_id.got_path("id", prompt="缺参数啦！记得补上喵喵～")
-async def got_id(id: str):
+async def handle_function(bot: Bot, event: Event, args: Message = CommandArg()):
+    args = str(args).replace('\n', '')
     send_text = f'OpenBMCLAPI 面板数据 {plugin_version}'
-    if len(id) > 24:
-        send_text = f'''OpenBMCLAPI 面板数据 {plugin_version}
-要求: 节点ID 最多 24 个字符
+    if str(args) == '' or str(args).isspace():
+        send_text += '\n缺参数啦！记得补上喵喵～'
+    elif len(str(args)) > 24:
+        send_text += f'''\n要求: 节点ID 最多 24 个字符
 搜索条件不符合要求，请调整参数后重新尝试'''
     else:
         rank = await read_file_from_cache('rank.json')
         version = await read_file_from_cache('dashboard.json')
-        matches_with_index = search_by_name(rank, id, '_id')
+        matches_with_index = search_by_name(rank, str(args), '_id')
         if len(matches_with_index) > 0 and len(matches_with_index) <= 3:
             for index, match in matches_with_index:
                 enabled_status = '❔'
                 fullSize_status = '❔'
                 version_status = '❔'
                 # 节点状态检测
-                if match.get('isEnabled') == True:
+                if match.get('isEnabled'):
                     enabled_status = '✅'
                 else:
                     enabled_status = '❌'
                 # 节点类型检测
-                if match.get('fullSize') == True:
+                if match.get('fullSize'):
                     fullSize_status = '🌕'
                 else:
                     fullSize_status = '🌗'
                 # 节点版本检测
-                if match.get('version') != None:
+                if match.get('version') is not None:
                     if match.get('version') == version.get('version'):
                         version_status = '🟢'
                     else:
                         version_status = '🟠'
-
-                send_text += f'''\n{enabled_status}{fullSize_status} | {index} | {match.get('name')} | {match.get('version', '未知')}{version_status}
+            send_text += f'''\n{enabled_status}{fullSize_status} | {index} | {match.get('name')} | {match.get('version', '未知')}{version_status}
 所有者: {match.get('user', {}).get('name', '未知')} | 赞助商: {match.get('sponsor', {}).get('name', '未知')}
 当日流量: {hum_convert(match.get('metric', {}).get('bytes', 0))}
 当日请求数: {format_number(match.get('metric', {}).get('hits', 0))} 次
 ID: {match.get('_id')}'''
-                send_text += f'\n请求时间: {datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}'
         elif len(matches_with_index) > 3 and len(matches_with_index) <= 10:
             for index, match in matches_with_index:
                 # 节点状态检测
@@ -303,53 +279,42 @@ ID: {match.get('_id')}'''
                     else:
                         version_status = '🟠'
                 send_text += f'''\n{enabled_status}{fullSize_status}{version_status} | {index} | {match.get('name')} | {hum_convert(match.get('metric', {}).get('bytes', 0))} | {format_number(match.get('metric', {}).get('hits', 0))}'''
-            send_text += f'\n请求时间: {datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}'
+
         elif len(matches_with_index) > 10:
             send_text += f'''\n搜索到{len(matches_with_index)}个节点，请改用更精确的ID
 请求时间: {datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}'''
         else:
-            send_text += f'''未找到有关 {id} 的相关节点信息，请调整参数后重新尝试
-请求时间: {datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}'''
-        r = await UniMessage.text(send_text).send(reply_to=True)
-        await r.recall(delay=60, index=0)
+            send_text += f'\n未找到有关 {args} 的相关节点信息，请调整参数后重新尝试'
+    send_text += f'\n请求时间: {datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}'
+    await MessageFactory(send_text).finish(reply=True)
             
 # 根据 节点名称 搜索节点详细信息   
-node_rank = on_alconna(
-    Alconna(
-        "排名",
-        Args["position?", str]
-    ),
-)
-
+node_rank = on_command("排名")
 @node_rank.handle()
-async def handle_function(position: Match[str]):
-    if position.available:
-        node_rank.set_path_arg("position", position.result)
-
-@node_rank.got_path("position", prompt="缺参数啦！记得补上喵喵～")
-async def got_position(position: int):
+async def handle_function(bot: Bot, event: Event, args: Message = CommandArg()):
+    args = str(args).replace('\n', '')
     send_text = f'OpenBMCLAPI 面板数据 {plugin_version}'
     rank = await read_file_from_cache('rank.json')
     version = await read_file_from_cache('version.json')
     try:
-        index = position-1
+        index = int(str(args))-1
         match = get_record_by_index(rank, index)
         if match is not None:  # 正常情况
             enabled_status = '❔'
             fullSize_status = '❔'
             version_status = '❔'
             # 节点状态检测
-            if match.get('isEnabled') == True:
+            if match.get('isEnabled'):
                 enabled_status = '✅'
             else:
                 enabled_status = '❌'
             # 节点类型检测
-            if match.get('fullSize') == True:
+            if match.get('fullSize'):
                 fullSize_status = '🌕'
             else:
                 fullSize_status = '🌗'
             # 节点版本检测
-            if match.get('version') != None:
+            if match.get('version') is not None:
                 if match.get('version') == version.get('version'):
                     version_status = '🟢'
                 else:
@@ -361,46 +326,34 @@ async def got_position(position: int):
             send_text += f'\n请求时间: {datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}'
         else:   # 超了
             send_text += f'\n索引超出范围，请输入一个有效的数字。'
-            send_text += f'\n请求时间: {datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}'
     except ValueError:
-        send_text = f'''OpenBMCLAPI 面板数据 {plugin_version}
-要求: 节点名次 必须为一个整数
+        if str(args) == '' or str(args).isspace():
+            send_text += '\n缺参数啦！记得补上喵喵～'
+        else:
+            send_text +=  f'''\n要求: 节点名次 必须为一个整数
 搜索条件不符合要求，请调整参数后重新尝试'''
-    r = await UniMessage.text(send_text).send(reply_to=True)
-    await r.recall(delay=60, index=0)
+    send_text += f'\n请求时间: {datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}'
+    await MessageFactory(send_text).finish(reply=True)
             
 # 随机获取 Mxmilu666/bangbang93HUB 中精华图片
-bangbang93HUB = on_alconna(
-    Alconna(
-        "93HUB",
-        Args["name?", str]
-    ),
-)
-
+bangbang93HUB = on_command("93HUB")
 @bangbang93HUB.handle()
-async def handle_function(name: Match[str]):
-    if name.available:
-        bangbang93HUB.set_path_arg("name", name.result)
-
-@bangbang93HUB.got_path("name", prompt=UniMessage.image(url='https://apis.bmclapi.online/api/93/random'))
-async def handle_function(name: str):
-    send_text = ''
-    if name == '':
-        send_text = UniMessage.image(url='https://apis.bmclapi.online/api/93/random')
+async def handle_function(bot: Bot, event: Event, args: Message = CommandArg()):
+    args = str(args).replace('\n', '')
+    if str(args) == '' or str(args).isspace():
+        send_text = Image('https://apis.bmclapi.online/api/93/random')
     else:
-        name = name.replace('\n', '')
         matchList = []
         imageList = httpx.get('https://ttb-network.top:8800/mirrors/bangbang93hub/filelist', headers=headers).json()
 
         for i in imageList:
-            if name.lower() in i:
+            if str(args).lower() in i:
                 matchList.append(i)
 
         if len(matchList) < 1:
-            send_text = UniMessage.text('找不到哦，请重新尝试~')
+            send_text = '找不到哦，请重新尝试~'
         elif len(matchList) == 1:
-            send_text =  UniMessage.image(url=f"https://apis.bmclapi.online/api/93/file?name={matchList[0]}")
+            send_text = Image('https://apis.bmclapi.online/api/93/file?name={matchList[0]}')
         else:
-            send_text = UniMessage.text(f'搜索结果包含 {len(matchList)} 条，请改用更加精确的参数搜索')
-    r = await send_text.send(reply_to=True)
-    await r.recall(delay=60, index=0)
+            send_text = f'搜索结果包含 {len(matchList)} 条，请改用更加精确的参数搜索'
+    MessageFactory(send_text).finish(reply=True)
