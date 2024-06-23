@@ -1,6 +1,6 @@
 ## 插件配置 部分
 import nonebot
-from .config import Config, plugin_name, plugin_version, plugin_config
+from nonebot_plugin_obastatus.config import Config, plugin_name, plugin_version, plugin_config
 from nonebot import get_plugin_config
 from nonebot.plugin import PluginMetadata, inherit_supported_adapters
 
