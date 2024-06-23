@@ -114,12 +114,6 @@ async def write_file_to_cache(filename: str, content: dict):
         await f.write(str(content))
 
 
-
-async def do_something():
-    await reload_cache()
-
-
-
 # 刷新缓存（异步版）
 async def reload_cache():
     headers = {
