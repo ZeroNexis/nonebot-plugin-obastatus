@@ -1,10 +1,7 @@
-## 插件配置 部分
-import nonebot
 from nonebot_plugin_obastatus.config import Config, plugin_name, plugin_version, plugin_config
-from nonebot import get_plugin_config
 from nonebot.plugin import PluginMetadata, inherit_supported_adapters
 
-## 机器人 部分
+# 机器人 部分
 import json
 import httpx
 import locale
@@ -15,16 +12,21 @@ from random import choice
 from nonebot.params import CommandArg
 from nonebot import require, on_command, get_driver
 from nonebot.adapters import Bot, Event, MessageSegment, Message
+import aiofiles
+from nonebot import get_driver
+from nonebot.log import logger
+from nonebot_plugin_obastatus.config import Config, plugin_name, plugin_version, plugin_config
+from pathlib import Path
 
-## 回复 & 发图 部分
+# 回复 & 发图 部分
 require("nonebot_plugin_saa")
 from nonebot_plugin_saa import Text, Image, MessageFactory
 
-## 定时任务 部分
+# 定时任务 部分
 require("nonebot_plugin_apscheduler")
 from nonebot_plugin_apscheduler import scheduler
 
-## 数据存储 部分
+# 数据存储 部分
 require("nonebot_plugin_localstore")
 import nonebot_plugin_localstore as store
 
@@ -41,17 +43,9 @@ __plugin_meta__ = PluginMetadata(
 93HUB <(可选)图片搜索条件>: 相信你一定知道""",
 
     type="application",
-    # 发布必填，当前有效类型有：`library`（为其他插件编写提供功能），`application`（向机器人用户提供功能）。
-
     homepage="https://github.com/Zero-Octagon/nonebot-plugin-obastatus",
-    # 发布必填。
-
     config=Config,
-    # 插件配置项类，如无需配置可不填写。
-
     supported_adapters=inherit_supported_adapters("nonebot_plugin_saa")
-    # 支持的适配器集合，其中 `~` 在此处代表前缀 `nonebot.adapters.`，其余适配器亦按此格式填写。
-    # 若插件可以保证兼容所有适配器（即仅使用基本适配器功能）可不填写，否则应该列出插件支持的适配器。
 )
 
 headers = {
@@ -112,20 +106,43 @@ async def read_file_from_cache(filename: str):
     return filelist
 
 # 写缓存（异步版）
-async def write_file_to_cache(filename, filelist):
-    cache_file = store.get_cache_file(plugin_name, filename)
-    async with open(cache_file, "w") as f:
-        json.dump(filelist, f)
-    logger.info(f"{filename} 的缓存保存成功")
+async def write_file_to_cache(filename: str, content: dict):
+    cache_file = Path('cache') / filename
+    cache_file.parent.mkdir(parents=True, exist_ok=True)
+
+    async with aiofiles.open(cache_file, 'w') as f:
+        await f.write(str(content))
+
+
+
+async def do_something():
+    await reload_cache()
+
+
 
 # 刷新缓存（异步版）
 async def reload_cache():
-    version = await httpx.get('https://bd.bangbang93.com/openbmclapi/metric/version', headers=headers).json()
-    dashboard = await httpx.get('https://bd.bangbang93.com/openbmclapi/metric/dashboard', headers=headers).json()
-    rank = await httpx.get('https://bd.bangbang93.com/openbmclapi/metric/rank', headers=headers).json()
-    await write_file_to_cache('version.json', version)
-    await write_file_to_cache('dashboard.json', dashboard)
-    await write_file_to_cache('rank.json', rank)
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+    }
+    async with httpx.AsyncClient() as client:
+        response = await client.get('https://bd.bangbang93.com/openbmclapi/metric/version', headers=headers)
+        version = response.json()
+        await write_file_to_cache('version.json', version)
+
+        dashboard = await client.get('https://bd.bangbang93.com/openbmclapi/metric/dashboard', headers=headers)
+        dashboard = dashboard.json()
+        await write_file_to_cache('dashbowrd.json', dashboard)
+
+        rank = await client.get('https://bd.bangbang93.com/openbmclapi/metric/rank', headers=headers)
+        rank = rank.json()
+        await write_file_to_cache('rank.json', rank)
+
+        await write_file_to_cache('version.json', version)
+
+        await write_file_to_cache('dashboard.json', dashboard)
+
+        await write_file_to_cache('rank.json', rank)
 
 # 插件的帮助面板
 help = on_command("帮助")
