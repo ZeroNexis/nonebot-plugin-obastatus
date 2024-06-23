@@ -8,7 +8,7 @@ from nonebot.plugin import PluginMetadata, inherit_supported_adapters
 import json
 import httpx
 import locale
-import asyncio
+import aiofiles
 import datetime
 from loguru import logger
 from random import choice
@@ -55,6 +55,7 @@ __plugin_meta__ = PluginMetadata(
 )
 
 headers = {
+    "User-Agent": f"nonebot-plugin-obastatus/{plugin_version}",
     'Cookie': plugin_config.oba_cookie,
 }
 
@@ -106,27 +107,28 @@ def get_record_by_index(records, index):
 # 读缓存
 async def read_file_from_cache(filename: str):
     cache_file = store.get_cache_file(plugin_name, filename)
-    with open(cache_file, "r") as f:
-        filelist_content = f.read()
+    async with aiofiles.open(cache_file, "r") as f:
+        filelist_content = await f.read()
         filelist = json.loads(filelist_content)
     return filelist
 
 # 写缓存
 async def write_file_to_cache(filename, filelist):
     cache_file = store.get_cache_file(plugin_name, filename)
-    with open(cache_file, "w") as f:
-        json.dump(filelist, f)
+    async with aiofiles.open(cache_file, 'w') as f:
+        await f.write(json.dumps(filelist))   
+
     logger.info(f"{filename} 的缓存保存成功")
 
 # 刷新缓存
 async def reload_cache():
     async with httpx.AsyncClient() as client:
         version = (await client.get('https://bd.bangbang93.com/openbmclapi/metric/version', headers=headers)).json()
+        await write_file_to_cache('version.json', version)
         dashboard = (await client.get('https://bd.bangbang93.com/openbmclapi/metric/dashboard', headers=headers)).json()
+        await write_file_to_cache('dashboard.json', dashboard)
         rank = (await client.get('https://bd.bangbang93.com/openbmclapi/metric/rank', headers=headers)).json()
-    await write_file_to_cache('version.json', version)
-    await write_file_to_cache('dashboard.json', dashboard)
-    await write_file_to_cache('rank.json', rank)
+        await write_file_to_cache('rank.json', rank)
 
 scheduler.add_job(
     reload_cache, "interval", minutes=1, id="timed_cache_refresh"
