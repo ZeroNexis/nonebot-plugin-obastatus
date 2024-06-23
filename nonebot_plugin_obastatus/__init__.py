@@ -103,22 +103,22 @@ def get_record_by_index(records, index):
     else:
         return None
 
-# 读缓存
+# 读缓存（异步版）
 async def read_file_from_cache(filename: str):
     cache_file = store.get_cache_file(plugin_name, filename)
-    with open(cache_file, "r") as f:
-        filelist_content = f.read()
+    async with open(cache_file, "r") as f:
+        filelist_content = await f.read()
         filelist = json.loads(filelist_content)
     return filelist
 
-# 写缓存
+# 写缓存（异步版）
 async def write_file_to_cache(filename, filelist):
     cache_file = store.get_cache_file(plugin_name, filename)
-    with open(cache_file, "w") as f:
+    async with open(cache_file, "w") as f:
         json.dump(filelist, f)
     logger.info(f"{filename} 的缓存保存成功")
 
-# 刷新缓存
+# 刷新缓存（异步版）
 async def reload_cache():
     version = await httpx.get('https://bd.bangbang93.com/openbmclapi/metric/version', headers=headers).json()
     dashboard = await httpx.get('https://bd.bangbang93.com/openbmclapi/metric/dashboard', headers=headers).json()
@@ -126,10 +126,6 @@ async def reload_cache():
     await write_file_to_cache('version.json', version)
     await write_file_to_cache('dashboard.json', dashboard)
     await write_file_to_cache('rank.json', rank)
-
-scheduler.add_job(
-    reload_cache, "interval", minutes=1, id="timed_cache_refresh"
-)
 
 # 插件的帮助面板
 help = on_command("帮助")
@@ -145,8 +141,8 @@ Tips: 结果 >3 条显示部分信息，结果 > 10条不显示任何信息（�
 特别鸣谢: 盐木、甜木、米露、听风、天秀 和 bangbang93 的不杀之恩
 '''
     await MessageFactory(help_msg).finish(reply=True)
-    
-# OpenBMCLAPI 总览
+
+# OpenBMCLAPI 总览（异步版）
 status = on_command("总览")
 @status.handle()
 async def handle_function(bot: Bot, event: Event):
@@ -161,7 +157,7 @@ async def handle_function(bot: Bot, event: Event):
 数据源: https://bd.bangbang93.com/pages/dashboard'''
     await MessageFactory(status_msg).finish(reply=True)
 
-# 根据 节点名称 搜索节点详细信息   
+# 根据 节点名称 搜索节点详细信息（异步版）
 node = on_command("节点")
 @node.handle()
 async def handle_function(bot: Bot, event: Event, args: Message = CommandArg()):
@@ -287,8 +283,8 @@ ID: {match.get('_id')}'''
             send_text += f'\n未找到有关 {args} 的相关节点信息，请调整参数后重新尝试'
     send_text += f'\n请求时间: {datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}'
     await MessageFactory(send_text).finish(reply=True)
-            
-# 根据 节点名称 搜索节点详细信息   
+
+# 根据 节点名称 搜索节点详细信息
 node_rank = on_command("排名")
 @node_rank.handle()
 async def handle_function(bot: Bot, event: Event, args: Message = CommandArg()):
@@ -334,8 +330,8 @@ async def handle_function(bot: Bot, event: Event, args: Message = CommandArg()):
 搜索条件不符合要求，请调整参数后重新尝试'''
     send_text += f'\n请求时间: {datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}'
     await MessageFactory(send_text).finish(reply=True)
-            
-# 随机获取 Mxmilu666/bangbang93HUB 中精华图片
+
+# 随机获取 Mxmilu666/bangbang93HUB 中精华图片（异步版）
 bangbang93HUB = on_command("93HUB")
 @bangbang93HUB.handle()
 async def handle_function(bot: Bot, event: Event, args: Message = CommandArg()):
@@ -344,7 +340,7 @@ async def handle_function(bot: Bot, event: Event, args: Message = CommandArg()):
         send_text = Image('https://apis.bmclapi.online/api/93/random')
     else:
         matchList = []
-        imageList = httpx.get('https://ttb-network.top:8800/mirrors/bangbang93hub/filelist', headers=headers).json()
+        imageList = await httpx.get('https://ttb-network.top:8800/mirrors/bangbang93hub/filelist', headers=headers).json()
 
         for i in imageList:
             if str(args).lower() in i:
@@ -353,7 +349,7 @@ async def handle_function(bot: Bot, event: Event, args: Message = CommandArg()):
         if len(matchList) < 1:
             send_text = '找不到哦，请重新尝试~'
         elif len(matchList) == 1:
-            send_text = Image('https://apis.bmclapi.online/api/93/file?name={matchList[0]}')
+            send_text = Image(f'https://apis.bmclapi.online/api/93/file?name={matchList[0]}')
         else:
             send_text = f'搜索结果包含 {len(matchList)} 条，请改用更加精确的参数搜索'
-    MessageFactory(send_text).finish(reply=True)
+    await MessageFactory(send_text).finish(reply=True)
