@@ -120,9 +120,10 @@ async def write_file_to_cache(filename, filelist):
 
 # 刷新缓存
 async def reload_cache():
-    version = await httpx.get('https://bd.bangbang93.com/openbmclapi/metric/version', headers=headers).json()
-    dashboard = await httpx.get('https://bd.bangbang93.com/openbmclapi/metric/dashboard', headers=headers).json()
-    rank = await httpx.get('https://bd.bangbang93.com/openbmclapi/metric/rank', headers=headers).json()
+    async with httpx.AsyncClient() as client:
+        version = (await client.get('https://bd.bangbang93.com/openbmclapi/metric/version', headers=headers)).json()
+        dashboard = (await client.get('https://bd.bangbang93.com/openbmclapi/metric/dashboard', headers=headers)).json()
+        rank = (await client.get('https://bd.bangbang93.com/openbmclapi/metric/rank', headers=headers)).json()
     await write_file_to_cache('version.json', version)
     await write_file_to_cache('dashboard.json', dashboard)
     await write_file_to_cache('rank.json', rank)
@@ -356,4 +357,4 @@ async def handle_function(bot: Bot, event: Event, args: Message = CommandArg()):
             send_text = Image('https://apis.bmclapi.online/api/93/file?name={matchList[0]}')
         else:
             send_text = f'搜索结果包含 {len(matchList)} 条，请改用更加精确的参数搜索'
-    MessageFactory(send_text).finish(reply=True)
+    await MessageFactory(send_text).finish(reply=True)
