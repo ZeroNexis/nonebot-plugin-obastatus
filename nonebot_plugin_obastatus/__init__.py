@@ -132,7 +132,7 @@ async def reload_cache():
 
         dashboard = await client.get('https://bd.bangbang93.com/openbmclapi/metric/dashboard', headers=headers)
         dashboard = dashboard.json()
-        await write_file_to_cache('dashbowrd.json', dashboard)
+        await write_file_to_cache('dashboard.json', dashboard)
 
         rank = await client.get('https://bd.bangbang93.com/openbmclapi/metric/rank', headers=headers)
         rank = rank.json()
