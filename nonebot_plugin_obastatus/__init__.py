@@ -361,7 +361,7 @@ async def handle_function(bot: Bot, event: Event, args: Message = CommandArg()):
         if len(matchList) < 1:
             send_text = '找不到哦，请重新尝试~'
         elif len(matchList) == 1:
-            send_text = Image('https://apis.bmclapi.online/api/93/file?name={matchList[0]}')
+            send_text = Image(f'https://apis.bmclapi.online/api/93/file?name={matchList[0]}')
         else:
             send_text = f'搜索结果包含 {len(matchList)} 条，请改用更加精确的参数搜索'
     await MessageFactory(send_text).finish(reply=True)
