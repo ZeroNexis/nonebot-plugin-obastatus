@@ -8,6 +8,7 @@ from nonebot.plugin import PluginMetadata, inherit_supported_adapters
 import json
 import httpx
 import locale
+import asyncio
 import aiofiles
 import datetime
 from loguru import logger
@@ -54,14 +55,18 @@ __plugin_meta__ = PluginMetadata(
     # 若插件可以保证兼容所有适配器（即仅使用基本适配器功能）可不填写，否则应该列出插件支持的适配器。
 )
 
-headers = {
+cookie_headers = {
     "User-Agent": f"nonebot-plugin-obastatus/{plugin_version}",
     'Cookie': plugin_config.oba_cookie,
 }
 
+headers = {
+    "User-Agent": f"nonebot-plugin-obastatus/{plugin_version}",
+}
+
 ## 开机后先运行一遍重载缓存
 @driver.on_startup
-async def do_something():
+async def first_init_cache():
     await reload_cache()
 
 # 存储单位格式化
@@ -123,11 +128,11 @@ async def write_file_to_cache(filename, filelist):
 # 刷新缓存
 async def reload_cache():
     async with httpx.AsyncClient() as client:
-        version = (await client.get('https://bd.bangbang93.com/openbmclapi/metric/version', headers=headers)).json()
+        version = (await client.get('https://bd.bangbang93.com/openbmclapi/metric/version', headers=cookie_headers)).json()
         await write_file_to_cache('version.json', version)
-        dashboard = (await client.get('https://bd.bangbang93.com/openbmclapi/metric/dashboard', headers=headers)).json()
+        dashboard = (await client.get('https://bd.bangbang93.com/openbmclapi/metric/dashboard', headers=cookie_headers)).json()
         await write_file_to_cache('dashboard.json', dashboard)
-        rank = (await client.get('https://bd.bangbang93.com/openbmclapi/metric/rank', headers=headers)).json()
+        rank = (await client.get('https://bd.bangbang93.com/openbmclapi/metric/rank', headers=cookie_headers)).json()
         await write_file_to_cache('rank.json', rank)
 
 scheduler.add_job(
