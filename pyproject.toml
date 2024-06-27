@@ -1,6 +1,6 @@
 [project]
 name = "nonebot_plugin_obastatus"
-version = "1.0.6"
+version = "1.0.7"
 description = "获取 OpenBMCLAPI 相关数据"
 readme = "README.md"
 requires-python = ">=3.8, <4.0"
