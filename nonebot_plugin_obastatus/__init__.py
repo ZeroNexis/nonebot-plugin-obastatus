@@ -352,7 +352,8 @@ async def handle_function(bot: Bot, event: Event, args: Message = CommandArg()):
         send_text = Image('https://apis.bmclapi.online/api/93/random')
     else:
         matchList = []
-        imageList = httpx.get('https://ttb-network.top:8800/mirrors/bangbang93hub/filelist', headers=headers).json()
+        async with httpx.AsyncClient() as client:
+            imageList = (await client.get('https://ttb-network.top:8800/mirrors/bangbang93hub/filelist', headers=cookie_headers)).json()
 
         for i in imageList:
             if str(args).lower() in i:
