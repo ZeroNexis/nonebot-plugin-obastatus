@@ -67,3 +67,6 @@ pip install nonebot-plugin-obastatus
 **@bangbang93**
 - [OpenBMCLAPI](https://qm.qq.com/q/2OfvVrAwVG) - 使用其API完成该项目中过半的内容
 
+**@ZeroWolf**
+- 部分同步为我改了异步，谢谢！
+
